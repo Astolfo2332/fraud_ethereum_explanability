@@ -208,3 +208,5 @@ __marimo__/
 
 catboost_info
 .idea
+data
+mlruns
