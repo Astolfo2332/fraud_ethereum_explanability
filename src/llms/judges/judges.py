@@ -7,7 +7,7 @@ from sklearn.metrics.pairwise import cosine_similarity
 from Levenshtein import ratio as levenshtein_ratio
 from difflib import SequenceMatcher
 
-from src.llms.judges.utils.parsing.parsers import parse_json_response
+from src.llms.judges.utils.parsing.parsers import parse_json_response, llm_format
 
 embedding_model = SentenceTransformer("all-mpnet-base-v2")
 
@@ -163,6 +163,7 @@ class JudgeGPT(JudgeScorer):
                          user_prompt=user_prompt, metric_name=metric_name,
                          main_scorer=main_scorer)
         self.structure = structure
+        self.need_extraction = []
 
     def score(self, responses: list, questions: list) -> list:
         model = ChatOllama(model=self.model, temperature=0.0)
@@ -176,12 +177,25 @@ class JudgeGPT(JudgeScorer):
             ]
 
             score = model.invoke(message)
-            score = parse_json_response(score.content)
-            eval_responses.append(score)
+            score, no_need_extraction = parse_json_response(score.content)
+            if no_need_extraction:
+                eval_responses.append(score)
+            else:
+                self.need_extraction.append(score)
 
         self.scores = eval_responses
 
         return self.scores
+
+    def finish(self):
+        if self.need_extraction:
+            for r in self.need_extraction:
+                score = llm_format(r)
+                self.scores.append(score)
+
+        self.process_scores()
+        self.log_metrics()
+
 
 class JudgeAccuracyGPT(JudgeScorer):
     def __init__(self, model:str, system_prompt:str,
@@ -189,6 +203,7 @@ class JudgeAccuracyGPT(JudgeScorer):
         super().__init__(model=model, system_prompt=system_prompt,
                          user_prompt=user_prompt, metric_name=metric_name)
         self.structure = structure
+        self.need_extraction = []
 
     def score(self, responses: list, questions: list) -> list:
         model = ChatOllama(model=self.model, temperature=0.0)
@@ -203,12 +218,25 @@ class JudgeAccuracyGPT(JudgeScorer):
             ]
 
             score = model.invoke(message)
-            score = parse_json_response(score.content)
-            eval_responses.append(score)
+            score, no_need_extraction = parse_json_response(score.content)
+            if no_need_extraction:
+                eval_responses.append(score)
+            else:
+                self.need_extraction.append(score)
 
         self.scores = eval_responses
 
         return self.scores
+
+    def finish(self):
+        self.main_scorer = False
+        if self.need_extraction:
+            for r in self.need_extraction:
+                score = llm_format(r)
+                self.scores.append(score)
+
+        self.process_scores()
+        self.log_metrics()
 
 class JudgeAccuracy(JudgeScorer):
     def __init__(self, model:str, system_prompt:str,

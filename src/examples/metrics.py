@@ -25,6 +25,10 @@ def make_a_score(score_fn, responses, original_prompt):
     score_fn.process_scores()
     score_fn.log_metrics()
 
+def finalized_all_metrics(all_metrics):
+    for metric in all_metrics:
+        metric.finish()
+
 def sanitize_thinking(response:str) -> str:
     if "<think>" in response:
         return response.split("</think>")[1]
@@ -52,6 +56,8 @@ def all_metrics():
 
                     for metric in all_metrics:
                         make_a_score(metric, responses, original_prompt)
+                if is_gpt:
+                    finalized_all_metrics(all_metrics)
 
 if __name__ == "__main__":
     all_metrics()

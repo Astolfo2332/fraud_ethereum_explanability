@@ -19,26 +19,25 @@ El texto a extraer es el siguiente:
 
 def parse_json_response(response: str):
 
+    if not response:
+        return None, True
+
     response = response.split("```json")
 
     if len(response) < 2:
-        response = llm_format(response)
-        return response
+        return response, False
 
     response = response[1]
-
-    if not response:
-        return None
     response = response.split("```")[0].strip()
 
     try:
         response = json.loads(response)
         res = JudgeOutput(**response)
-        return res
+        return res, True
     except json.JSONDecodeError:
-        return None
+        return None, True
 
-def llm_format(response: str):
+def llm_format(response):
     model = ChatOllama(model="gemma3:12b", temperature=0.0)
     model_with_structure = model.with_structured_output(JudgeOutput)
     response = model_with_structure.invoke(system_prompt + response[0])
