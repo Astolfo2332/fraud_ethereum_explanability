@@ -20,12 +20,12 @@ mlflow.langchain.autolog()
 
 judges_models = {
     "gpt-oss:20b": True,
-    "gemma3:12b-it-qat": False,
+    "gemma3:12b": False,
 }
 
 main_path = os.getcwd().split("src")[0]
 
-data_path = f"{main_path}/data/prompts"
+data_path = f"{main_path}/data/test"
 process_data_path = f"{main_path}/data/evaluated"
 os.makedirs(process_data_path, exist_ok=True)
 
@@ -37,16 +37,11 @@ def make_a_score(score_fn, responses, original_prompt):
     log_metric = score_fn.log_metrics()
     return scores, log_metric
 
-def finalized_all_metrics(all_metrics, df, df_path, metric_path):
+def finalized_all_metrics(all_metrics, df):
     metrics = {}
     for metric in all_metrics:
         df, log_metric = metric.finish(df)
         metrics[log_metric["column_name"]] = log_metric["data"]
-
-        df.to_csv(df_path, index=False)
-        with open(metric_path, "w", encoding="utf-8") as f:
-            json.dump(metrics, f)
-
     return df, metrics
 
 def load_metrics(all_metrics, metric_path):
@@ -66,7 +61,6 @@ def load_metrics(all_metrics, metric_path):
 
             if metric.metric_name in metrics:
                 metric.scores_num = metrics[metric.metric_name]
-    return metrics
 
 def list_to_numpy(data:list) -> list:
     return [np.array(item) for item in data]
@@ -78,7 +72,7 @@ def sanitize_thinking(response:str) -> str:
 
 def all_metrics():
 
-    mlflow.set_experiment("llms_evaluation")
+    mlflow.set_experiment("llms_evaluation_test")
 
     for model, is_gpt in judges_models.items():
         phbar = tqdm(available_data, total=len(available_data), desc="")
@@ -98,10 +92,9 @@ def all_metrics():
                 file_manager = FileManager(process_df_path, metric_path)
 
                 if file_manager.df_exists:
-                    metrics = load_metrics(all_metrics, metric_path)
+                    load_metrics(all_metrics, metric_path)
                     process_df = file_manager.df
                     print("Iniciando desde:", file_manager.null_index)
-
 
                 for row in tqdm(df.iterrows(), desc="Analizando filas", total=len(df)):
                     idx = row[0]
@@ -117,12 +110,6 @@ def all_metrics():
                     original_prompt = [original_prompt] * len(responses)
 
                     for metric in all_metrics:
-                        if file_manager.null_index != 0 and file_manager.last_column is not None:
-                            if metric.metric_name == file_manager.last_column:
-                                file_manager.last_column = None
-                            else:
-                                continue
-
                         scores, log_metric = make_a_score(metric, responses, original_prompt)
                         if metric.main_scorer:
                             lev_mat, diff_mat, cos_mat = metric.get_all_matrix()
@@ -142,7 +129,10 @@ def all_metrics():
                         process_df.to_csv(f"{process_data_path}/{process_df_name}", index=False)
 
                 if is_gpt or (file_manager.df_exists and file_manager.is_data_incomplete):
-                    df, metrics = finalized_all_metrics(all_metrics, process_df, process_df_path, metric_path)
+                    df, metrics = finalized_all_metrics(all_metrics, process_df)
+                    df.to_csv(f"{process_data_path}/{process_df_name}", index=False)
+                    with open(metric_path, "w", encoding="utf-8") as f:
+                        json.dump(metrics, f)
 
 if __name__ == "__main__":
     ollama_manager.start_ollama()
@@ -152,6 +142,3 @@ if __name__ == "__main__":
         except ResponseError as e:
             print(f"Error: {e}")
             ollama_manager.quick_restart()
-
-
-

@@ -3,6 +3,7 @@ from src.llms.prompts.correctness_prompts import correctness_system_prompt, corr
 from src.llms.prompts.relevance_prompts import relevance_user_prompt_gpt, relevance_user_prompt, relevance_system_prompt
 from src.llms.prompts.accuracy_prompts import accuracy_user_prompt, accuracy_system_prompt, accuracy_user_prompt_gpt
 from src.llms.prompts.completness_prompt import completeness_system_prompt, completeness_user_prompt, completeness_user_prompt_gpt
+from src.llms.prompts.consistency_prompts import consistency_system_prompt, consistency_user_prompt, consistency_user_prompt_gpt
 
 
 def correctness_judge(model: str, structure, is_gpt: bool = False) -> JudgeScorer:
@@ -93,11 +94,33 @@ def completeness_judge(model: str, structure, is_gpt: bool = False) -> JudgeScor
                        structure=structure,
                        metric_name=metric_name)
 
+def consistency_judge(model: str, structure, is_gpt: bool = False) -> JudgeScorer:
+    metric_name = model + "_consistency"
+    metric_name = metric_name.replace(":", "_")
+
+    system_prompt = consistency_system_prompt
+    user_prompt = consistency_user_prompt_gpt if is_gpt else consistency_user_prompt
+
+    if  is_gpt:
+        return JudgeGPT(model=model,
+                       system_prompt=system_prompt,
+                       user_prompt=user_prompt,
+                       structure=structure,
+                       metric_name=metric_name)
+
+
+    return JudgeScorer(model=model,
+                       system_prompt=system_prompt,
+                       user_prompt=user_prompt,
+                       structure=structure,
+                       metric_name=metric_name)
+
 
 def get_all_metrics(model: str, structure, is_gpt: bool = False) -> list[JudgeScorer]:
     return [
         correctness_judge(model, structure, is_gpt),
         relevance_judge(model, structure, is_gpt),
         accuracy_judge(model, structure, is_gpt),
-        completeness_judge(model, structure, is_gpt)
+        completeness_judge(model, structure, is_gpt),
+        consistency_judge(model, structure, is_gpt)
     ]
